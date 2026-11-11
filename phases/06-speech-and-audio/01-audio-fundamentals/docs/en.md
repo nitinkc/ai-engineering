@@ -28,7 +28,7 @@ Get these right and the rest of Phase 6 is tractable. Get them wrong and even Wh
 **Sampling rate (sr).** How many samples per second. Common rates in 2026:
 
 | Rate | Use |
-|------|-----|
+| ------ | ----- |
 | 8 kHz | Telephony, legacy VOIP. Nyquist at 4 kHz kills consonants. Avoid for ASR. |
 | 16 kHz | ASR standard. Whisper, Parakeet, SeamlessM4T v2 all consume 16 kHz. |
 | 22.05 kHz | TTS vocoder training for older models. |
@@ -41,6 +41,12 @@ Get these right and the rest of Phase 6 is tractable. Get them wrong and even Wh
 **Bit depth.** 16-bit PCM (signed int16, range ±32,767) is the universal exchange format. 24-bit for music, 32-bit float for internal DSP. Libraries like `soundfile` read int16 but expose float32 arrays in `[-1, 1]`.
 
 **Fourier Transform.** Any finite signal is a sum of sinusoids at different frequencies. The Discrete Fourier Transform (DFT) computes, for `N` samples, `N` complex coefficients — one per frequency bin. `bin k` maps to frequency `k · sr / N` Hz. Magnitude is amplitude at that frequency, angle is phase.
+
+```math
+X[k] = \sum_{n=0}^{N-1} x[n] \, e^{-i 2\pi k n / N}, \qquad k = 0, 1, \ldots, N-1
+```
+
+Each coefficient is complex: $X[k] = a_k + i b_k$, with magnitude $|X[k]| = \sqrt{a_k^2 + b_k^2}$ giving the amplitude at bin frequency $f_k = k \cdot sr / N$ Hz and angle $\angle X[k] = \arctan(b_k / a_k)$ giving the phase.
 
 **FFT.** Fast Fourier Transform: an `O(N log N)` algorithm for the DFT when `N` is a power of 2. Every audio library uses FFT under the hood. A 1024-sample FFT at 16 kHz gives 512 usable frequency bins spanning 0–8 kHz at 15.6 Hz resolution.
 
@@ -86,6 +92,8 @@ def dft(x):
     return out
 ```
 
+The two inner sums are Euler's formula $e^{-i\theta} = \cos\theta - i\sin\theta$ applied directly: `re` and `im` accumulate the real and imaginary parts of $X[k]$ from the equation above.
+
 `O(N²)` — fine for `N=256` to confirm correctness, useless for real audio. Real code calls `numpy.fft.rfft` or `torch.fft.rfft`.
 
 ### Step 4: find the dominant frequency
@@ -101,7 +109,7 @@ Sample a 7 kHz sine at 10 kHz (Nyquist = 5 kHz). The 7 kHz tone is above Nyquist
 The stack you will actually ship in 2026:
 
 | Task | Library | Why |
-|------|---------|-----|
+| ------ | --------- | ----- |
 | Read/write WAV/FLAC/OGG | `soundfile` (libsndfile wrapper) | Fastest, stable, returns float32. |
 | Resample | `torchaudio.transforms.Resample` or `librosa.resample` | Correct anti-aliasing built in. |
 | STFT / Mel | `torchaudio` or `librosa` | GPU-friendly; PyTorch ecosystem. |
@@ -123,7 +131,7 @@ Save as `outputs/skill-audio-loader.md`. The skill helps you check that audio in
 ## Key Terms
 
 | Term | What people say | What it actually means |
-|------|-----------------|-----------------------|
+| ------ | ----------------- | ----------------------- |
 | Sample rate | How many samples per second | Frequency in Hz at which the ADC measures the signal. |
 | Nyquist | The max frequency you can represent | `sr/2`; energy above it aliases back down. |
 | Bit depth | Resolution of each sample | `int16` = 65,536 levels; `float32` = 24-bit precision in `[-1, 1]`. |
